@@ -1,0 +1,11 @@
+#!/bin/bash
+set -ex
+
+DOCKER_TAG=${DOCKER_TAG:-"2.3.0-10.16-slim"}
+MULTI_FILE_SWAGGER_VERSION=${DOCKER_TAG%%-*}
+NODE_VERSION=${DOCKER_TAG#*-}
+
+docker build \
+  --build-arg "MULTI_FILE_SWAGGER_VERSION=${MULTI_FILE_SWAGGER_VERSION}" \
+  --build-arg "NODE_VERSION=${NODE_VERSION}" \
+  -t "${IMAGE_NAME}" .
