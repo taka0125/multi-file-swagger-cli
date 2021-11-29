@@ -1,0 +1,64 @@
+name: Publish Docker image
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  push_to_registry:
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: taka0125/multi-file-swagger-cli
+
+      - name: set ENV
+        run: |
+          CURRENT_TAG=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          BUILD_ARG_MULTI_FILE_SWAGGER_VERSION=${CURRENT_TAG%%-*}
+          BUILD_ARG_NODE_VERSION=${CURRENT_TAG#*-}
+
+          echo "BUILD_ARG_MULTI_FILE_SWAGGER_VERSION=${BUILD_ARG_MULTI_FILE_SWAGGER_VERSION}" >> $GITHUB_ENV
+          echo "BUILD_ARG_NODE_VERSION=${BUILD_ARG_NODE_VERSION}" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+          build-args: |
+            MULTI_FILE_SWAGGER_VERSION=${{ env.BUILD_ARG_MULTI_FILE_SWAGGER_VERSION }}
+            NODE_VERSION=${{ env.BUILD_ARG_NODE_VERSION }}
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
